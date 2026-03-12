@@ -1,8 +1,9 @@
 namespace EasyPeasyFirstPersonController
 {
+    using Photon.Pun;
     using UnityEngine;
 
-    public partial class FirstPersonController : MonoBehaviour
+    public partial class FirstPersonController : MonoBehaviourPun
     {
         [Header("Settings")]
         public float walkSpeed = 3f;
@@ -84,7 +85,7 @@ namespace EasyPeasyFirstPersonController
 
         void OnGUI()
         {
-            if (currentState != null && Application.isEditor && currentStateDebug)
+            if (currentState != null && Application.isEditor && currentStateDebug && photonView.IsMine)
                 GUILayout.Label("Current State: " + currentState.GetType().Name);
         }
 
@@ -94,9 +95,6 @@ namespace EasyPeasyFirstPersonController
             targetFov = normalFov;
             targetCameraY = standingCameraHeight;
             originalCamY = standingCameraHeight;
-
-            Cursor.lockState = CursorLockMode.Locked;
-            Cursor.visible = false;
 
             characterController = GetComponent<CharacterController>();
             standingCharacterControllerHeight = characterController.height;
@@ -108,8 +106,27 @@ namespace EasyPeasyFirstPersonController
             currentState.EnterState();
         }
 
+        private void Start()
+
+        {
+            if (photonView.IsMine)
+            {
+                Cursor.lockState = CursorLockMode.Locked;
+                Cursor.visible = false;
+            }
+            else
+            {
+                if (cam != null) cam.enabled = false;
+
+                AudioListener listener = playerCamera.GetComponent<AudioListener>();
+                if (listener != null) listener.enabled = false;
+            }
+        }
+
         private void Update()
         {
+            if (!photonView.IsMine) return;
+
             isGrounded = Physics.CheckSphere(groundCheck.position, 0.2f, groundMask, QueryTriggerInteraction.Ignore);
 
             currentState.UpdateState();
@@ -140,6 +157,7 @@ namespace EasyPeasyFirstPersonController
             {
                 targetFov = normalFov;
             }
+
             cam.fieldOfView = Mathf.SmoothDamp(cam.fieldOfView, targetFov, ref fovVelocity, 1f / fovChangeSpeed);
 
             landingMomentum = Mathf.Lerp(landingMomentum, 0, Time.deltaTime * 10f);
@@ -157,6 +175,7 @@ namespace EasyPeasyFirstPersonController
                 cameraParent.localPosition = new Vector3(cameraParent.localPosition.x, newY, cameraParent.localPosition.z);
             }
         }
+
         public bool HasCeiling()
         {
             float radius = characterController.radius * 0.9f;
@@ -165,6 +184,7 @@ namespace EasyPeasyFirstPersonController
 
             return Physics.SphereCast(origin, radius, Vector3.up, out _, checkDistance, groundMask, QueryTriggerInteraction.Ignore);
         }
+
         public bool CheckLedge(out Vector3 climbPosition)
         {
             climbPosition = Vector3.zero;
@@ -190,6 +210,8 @@ namespace EasyPeasyFirstPersonController
 
         private void OnTriggerEnter(Collider other)
         {
+            if (!photonView.IsMine) return;
+
             if (((1 << other.gameObject.layer) & waterMask) != 0)
             {
                 isInWater = true;
@@ -198,11 +220,12 @@ namespace EasyPeasyFirstPersonController
 
         private void OnTriggerExit(Collider other)
         {
+            if (!photonView.IsMine) return;
+
             if (((1 << other.gameObject.layer) & waterMask) != 0)
             {
                 isInWater = false;
             }
         }
-
     }
 }
